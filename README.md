@@ -1,45 +1,38 @@
-# GPS Robot Car — phone app (Flutter)
+# RoboCar GPS Controller — Flutter app
 
-Link: **phone —USB OTG cable→ bridge ESP32 —ESP-NOW→ car ESP32**.
-The bridge firmware is in `gps_robot_car` (`ROBOT_ROLE ROLE_BRIDGE`). The app talks to it as a USB serial port, 115200 baud, text lines.
+Connection architecture: **Android phone → USB OTG → bridge ESP32 → ESP-NOW → car ESP32**. The app communicates with the bridge as a USB serial device.
 
-## What the app does
-| Part | Logic |
-|---|---|
-| Top bar | tap to pick the USB device and connect; shows USB status and whether the car answers |
-| STOP | always visible; sends `STOP` and cancels GOTO / HOME |
-| Manual | 8-direction D-pad + 9 speed levels, sends `DRIVE speed,turn` every 100 ms while held, `STOP` on release |
-| GPS | **Home** (car drives to the phone, `HOME lat,lon` every 2 s), saved places (type a name → `GOTO lat,lon`), save phone position / car position, compass calibration (`CALIB`) |
-| Sensors | front / right / back / left in cm, plus the 7-point front sweep; red under 30 cm, yellow under 60 cm |
-| Battery | percent and volts from the car; low-battery banner when the car sends `E,low_battery` |
-| Log | events from the car (obstacle, arrived, link lost, GPS lost…) |
+## Home dashboard
 
-## Files (lib/)
-```
-main.dart                 entry
-app_theme.dart            colours (unchanged)
-car_link.dart             USB connection, heartbeat, protocol parsing, telemetry values
-gps_controller.dart       GOTO / HOME logic, phone GPS, distance to target
-places_store.dart         saved places (kept on the phone)
-home_screen.dart          screen layout, wires everything together
-usb_picker_dialog.dart    USB device list
-mode_card.dart            Manual / GPS tabs
-manual_control_card.dart  D-pad and speed knob
-gps_card.dart             Home button, place name, saved list, calibrate
-sensor_card.dart          ultrasonic distances
-battery_card.dart         battery
-log_card.dart             log
-```
+The home screen has a dark navy/electric-blue dashboard style with a compact connection and battery header, Manual Mode and GPS Mode tiles, and an explicit **Activate Mode** button. Switching the selected mode cancels previous drive/navigation commands; the selected mode must be activated again before its matching controls are enabled.
+
+The live map uses Esri dark-gray map tiles with a separate label/reference layer. The **Phone** button centers on the phone's live GPS position, while **Car** centers on the latest valid car GPS telemetry. Tap the map while GPS mode is active to select a destination, then use **Travel to Destination** or **Return to Phone**. The drawn segment on the map is a straight line between coordinates, not turn-by-turn road routing.
+
+The compact Manual Control panel has forward, reverse, left, right, stop, and three speed levels. A direction command repeats while pressed and STOP is sent on release. The full app also retains the advanced GPS tools for saved places, saving phone/car positions, and compass calibration.
+
+The four ultrasonic sensor cards highlight readings **below 10 cm in red**. The optional front-sweep row exposes the seven individual scan values. Emergency Stop remains visible beneath the control panels. Bottom navigation scrolls to Home, Map, Sensors, and Logs, and opens the connection/status Settings sheet.
+
+## Source files
+
+- `lib/main.dart` — app entry and theme setup
+- `lib/home_screen.dart` — home dashboard and actions
+- `lib/app_theme.dart` — navy/blue color palette
+- `lib/live_map_card.dart` — live phone/car map, destination selection, map centering
+- `lib/mode_card.dart` — Manual/GPS mode selector and activation
+- `lib/car_link.dart` — USB connection, telemetry, and command protocol
+- `lib/gps_controller.dart` — GPS destination / return-to-phone logic
+- `lib/gps_card.dart` — advanced place-saving and compass tools
+- `lib/sensor_card.dart` — ultrasonic readings
+- `lib/log_card.dart` — event log
+- `lib/usb_picker_dialog.dart` — USB device picker
 
 ## Build
+
+The included CodeMagic workflow targets a release APK using Flutter 3.24.5 and Java 17. The Android project uses Kotlin Gradle plugin 1.9.22 to match the Kotlin metadata used by the resolved Android plugins.
+
 ```bash
 flutter pub get
 flutter build apk --release
 ```
-Android build files were moved to the Flutter 3.10 defaults (Gradle 7.5, Android Gradle Plugin 7.3.0, Kotlin 1.7.10) because the new plugins need them.
 
-## Using it
-1. Plug the bridge ESP32 into the phone with an OTG cable (the phone powers it).
-2. Open the app, tap the top-right chip, choose the device, allow USB access.
-3. "Car" turns green in the top bar when the car answers.
-4. GPS mode needs the car GPS fix and a calibrated compass; Home also needs the phone location turned on.
+Use CodeMagic's build log to diagnose remaining Android Gradle or dependency incompatibilities; the dashboard source has not been compiled in this environment.

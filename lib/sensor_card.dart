@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'app_theme.dart';
 
-// Distances come from the car in cm; null = no fresh reading.
-// Firmware limits: stop at 30 cm (OBSTACLE_CM), phone warning at 60 cm (WARNING_CM).
-const int _kStopCm = 30;
-const int _kWarnCm = 60;
+// The dashboard highlights the sensors in red when the measured distance
+// is under 10 cm, matching the RoboCar visual specification.
+const int _kDangerCm = 10;
 
 class SensorCard extends StatelessWidget {
   final int? front;          // nearest point of the swept front arc
@@ -36,9 +35,14 @@ class SensorCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('ULTRASONIC SENSORS (cm)',
-              style: TextStyle(fontSize: 10, color: AppTheme.textDim,
-                  letterSpacing: 1.2, fontWeight: FontWeight.w500)),
+          Row(
+            children: [
+              const Icon(Icons.sensors_rounded, color: AppTheme.blueLight, size: 19),
+              const SizedBox(width: 7),
+              const Expanded(child: Text('Ultrasonic Sensors', style: TextStyle(fontSize: 13, color: AppTheme.blueLight, fontWeight: FontWeight.w800))),
+              Text('4 SENSORS', style: TextStyle(fontSize: 9, color: AppTheme.textMuted, letterSpacing: .7, fontWeight: FontWeight.w700)),
+            ],
+          ),
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: _SensorCell(
@@ -57,31 +61,36 @@ class SensorCard extends StatelessWidget {
                 icon: Icons.arrow_back, label: 'Left',
                 value: connected ? left : null)),
           ]),
-          const SizedBox(height: 10),
-          const Text('FRONT SWEEP  (−45° … +45°)',
-              style: TextStyle(fontSize: 9, color: AppTheme.textDim,
-                  letterSpacing: 1.0, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 6),
-          Row(
-            children: List.generate(arc.length, (i) {
-              final v = connected ? arc[i] : null;
-              final c = _color(v);
-              return Expanded(
-                child: Container(
-                  margin: EdgeInsets.only(right: i == arc.length - 1 ? 0 : 4),
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppTheme.bgDeep,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.borderColor, width: 0.5),
-                  ),
-                  child: Text(v == null ? '—' : '$v',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 11, color: c,
-                          fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: EdgeInsets.zero,
+              iconColor: AppTheme.blueLight,
+              collapsedIconColor: AppTheme.textMuted,
+              title: const Text('Front sweep details', style: TextStyle(fontSize: 10, color: AppTheme.textMuted)),
+              children: [
+                Row(
+                  children: List.generate(arc.length, (i) {
+                    final v = connected ? arc[i] : null;
+                    final c = _color(v);
+                    return Expanded(
+                      child: Container(
+                        margin: EdgeInsets.only(right: i == arc.length - 1 ? 0 : 4),
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppTheme.bgDeep,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppTheme.borderColor, width: 0.5),
+                        ),
+                        child: Text(v == null ? '—' : '$v', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.w500)),
+                      ),
+                    );
+                  }),
                 ),
-              );
-            }),
+              ],
+            ),
           ),
         ],
       ),
@@ -90,8 +99,7 @@ class SensorCard extends StatelessWidget {
 
   static Color _color(int? v) {
     if (v == null) return AppTheme.textDim;
-    if (v < _kStopCm) return AppTheme.red;
-    if (v < _kWarnCm) return AppTheme.yellow;
+    if (v < _kDangerCm) return AppTheme.red;
     return AppTheme.textPrimary;
   }
 }
@@ -109,9 +117,8 @@ class _SensorCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final danger = value != null && value! < _kStopCm;
-    final warn   = value != null && value! < _kWarnCm;
-    final color  = danger ? AppTheme.red : warn ? AppTheme.yellow : AppTheme.skyBlue;
+    final danger = value != null && value! < _kDangerCm;
+    final color  = danger ? AppTheme.red : AppTheme.green;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
       decoration: BoxDecoration(

@@ -16,12 +16,18 @@ class LiveMapCard extends StatefulWidget {
   final CarLink link;
   final GpsController gps;
   final bool gpsMode;
+  final double height;
+  final bool showNavigationActions;
+  final ValueChanged<LatLng>? onDestinationSelected;
 
   const LiveMapCard({
     super.key,
     required this.link,
     required this.gps,
     required this.gpsMode,
+    this.height = 350,
+    this.showNavigationActions = true,
+    this.onDestinationSelected,
   });
 
   @override
@@ -213,12 +219,12 @@ class _LiveMapCardState extends State<LiveMapCard> {
   Widget build(BuildContext context) {
     final car = _car;
     return Container(
-      height: 350,
+      height: widget.height,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.borderColor),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppTheme.borderBlue, width: .9),
       ),
       child: Column(
         children: [
@@ -262,15 +268,22 @@ class _LiveMapCardState extends State<LiveMapCard> {
                 onTap: (_, point) {
                   if (!widget.gpsMode) return;
                   setState(() => _destination = point);
+                  widget.onDestinationSelected?.call(point);
                 },
               ),
               children: [
-                // This world street basemap uses English global place labels.
+                // Dark-gray Esri basemap with a separate labels/reference layer.
                 TileLayer(
                   urlTemplate:
-                      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+                      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
                   userAgentPackageName: 'com.example.robocar_controller',
-                  maxNativeZoom: 19,
+                  maxNativeZoom: 16,
+                ),
+                TileLayer(
+                  urlTemplate:
+                      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+                  userAgentPackageName: 'com.example.robocar_controller',
+                  maxNativeZoom: 16,
                 ),
                 if (car != null && _destination != null)
                   PolylineLayer(
@@ -313,7 +326,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
                 RichAttributionWidget(
                   attributions: [
                     TextSourceAttribution(
-                      'Sources: Esri, HERE, Garmin, USGS, Intermap, NRCAN, TomTom',
+                      'Map tiles: Esri',
                       onTap: () {},
                     ),
                   ],
@@ -353,7 +366,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
               ],
             ),
           ),
-          if (widget.gpsMode)
+          if (widget.gpsMode && widget.showNavigationActions)
             Padding(
               padding: const EdgeInsets.all(8),
               child: Row(

@@ -1,19 +1,26 @@
-RoboCar GPS Controller - Integrated Project
+RoboCar GPS Controller - Updated Dashboard Project
 
-This project includes the map and operating-mode updates:
-- English-oriented Esri World Street Map tiles.
-- Separate Phone and Car buttons to center the map on live phone GPS or car GPS telemetry.
-- Explicit mode selection and Activate Mode button for Manual and Auto (GPS).
-- The selected mode must be activated before its control panel appears.
-- Switching modes sends a stop command and requires activation again.
-- GPS destination selection, Travel, and Return-to-Phone controls remain available in Auto (GPS) mode.
+This package keeps the existing Flutter app and includes a redesigned home screen inspired by the provided RoboCar dashboard reference:
+- Deep navy / electric-blue dashboard styling with a compact RoboCar header.
+- USB connection / car-online state and car battery percentage in the header.
+- Two large Manual Mode and GPS Mode selection tiles.
+- Separate Activate Mode button; changing the selected mode stops existing drive/navigation and requires activation again.
+- Dark Esri basemap and labels/reference layer.
+- Separate Phone and Car map buttons to recenter on live phone GPS and car GPS telemetry.
+- Map taps choose a destination only when GPS mode is active; the GPS panel provides Travel and Return to Phone actions.
+- Manual 4-direction hold controls with repeated DRIVE commands and three speed levels.
+- Large Emergency Stop control.
+- Four ultrasonic sensor cards; readings under 10 cm are highlighted red. Additional front-sweep values are available from a collapsed details row.
+- Bottom navigation for Home, Map, Sensors, Logs, and Settings.
+- Advanced GPS tools remain accessible for saved places and compass calibration.
 
 Upload instructions:
-1. Extract this ZIP.
-2. Upload the CONTENTS of this folder to the ROOT of the GitHub repository. Do not put the whole project inside another nested folder.
-3. Commit and push the changes.
-4. Build the latest commit in CodeMagic.
+1. Download and extract this ZIP.
+2. Upload the CONTENTS of the extracted folder to the ROOT of the GitHub repository. Do not nest the project inside an extra directory.
+3. Confirm `pubspec.yaml` and `codemagic.yaml` are visible at the repository root.
+4. Commit and push the files.
+5. In CodeMagic, build the latest commit from the branch containing these files.
 
-The UI changes have not been compiled in this environment. If CodeMagic reports a build error, use the new build log to diagnose it.
+Build environment in this package: Flutter 3.24.5, Java 17, Kotlin Gradle plugin 1.9.22. The app UI changes have not been compiled in this environment, so verify the next CodeMagic build log before considering the APK build complete.
 
 Note: android/local.properties is machine-specific and is intentionally not included. Flutter normally generates it during a build.
