@@ -1,28 +1,35 @@
 
-name: robocar_controller
-description: GPS Robot Car controller - USB link to the bridge ESP32 (ESP-NOW to the car)
-version: 2.0.0+2
+workflows:
+  android-workflow:
+    name: RoboCar Android Build
+    max_build_duration: 60
 
-environment:
-  sdk: '>=3.0.0 <4.0.0'
+    environment:
+      flutter: 3.24.5
+      java: 17
 
-dependencies:
-  flutter:
-    sdk: flutter
-  usb_serial: ^0.5.1
-  geolocator: ^10.1.0
-  shared_preferences: ^2.2.2
-  permission_handler: 10.4.5
-  flutter_map: ^7.0.2
-  latlong2: ^0.9.1
+    scripts:
+      - name: Check Flutter and Java versions
+        script: |
+          flutter --version
+          java -version
 
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^2.0.0
+      - name: Get packages
+        script: flutter pub get
 
-dependency_overrides:
-  geolocator_android: 4.6.1
+      - name: Analyze code
+        script: flutter analyze --no-fatal-infos || true
 
-flutter:
-  uses-material-design: true
+      - name: Build release APK
+        script: flutter build apk --release
+
+    artifacts:
+      - build/**/*.apk
+
+    publishing:
+      email:
+        recipients:
+          - mohamedali150306@gmail.com
+        notify:
+          success: true
+          failure: true
