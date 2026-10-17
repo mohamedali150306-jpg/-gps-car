@@ -25,6 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final GpsController _gps = GpsController(_link, _places);
 
   CarMode _selected = CarMode.manual;
+  CarMode? _activeMode;
 
   @override
   void initState() {
@@ -33,7 +34,49 @@ class _HomeScreenState extends State<HomeScreen> {
     _places.load();
   }
 
-  void _rebuild() => setState(() {});
+  void _rebuild() {
+    if (!_link.connected) _activeMode = null;
+    if (mounted) setState(() {});
+  }
+
+  void _onModeChanged(CarMode mode) {
+    if (mode == _selected) return;
+
+    // Stop any previous navigation/drive command before requiring an explicit
+    // activation of the newly selected mode.
+    if (_link.connected) _gps.stopAll();
+    setState(() {
+      _selected = mode;
+      _activeMode = null;
+    });
+  }
+
+  void _activateSelectedMode() {
+    if (!_link.connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connect the car before activating a mode.')),
+      );
+      return;
+    }
+
+    // Always cancel any previous route first. Manual activation then sends a
+    // zero-speed DRIVE command, which places the firmware in manual/DRIVE mode
+    // without moving the motors. The GPS mode is armed here; GOTO/HOME starts
+    // actual autonomous movement only after a destination is requested.
+    _gps.stopAll();
+    if (_selected == CarMode.manual) {
+      _link.drive(0, 0);
+    }
+
+    final message = _selected == CarMode.manual
+        ? 'Manual mode activated.'
+        : 'Auto GPS mode armed. Choose a destination or return to the phone.';
+    setState(() => _activeMode = _selected);
+    _link.addExternalLog('ok', message);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   @override
   void dispose() {
@@ -86,11 +129,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 10),
                   ModeCard(
-                    current:   _selected,
-                    onChanged: (m) => setState(() => _selected = m),
+                    current: _selected,
+                    activeMode: _activeMode,
+                    connected: connected,
+                    onChanged: _onModeChanged,
+                    onActivate: _activateSelectedMode,
                   ),
                   const SizedBox(height: 10),
-                  LiveMapCard(link: _link, gps: _gps, gpsMode: _selected == CarMode.gps),
+                  LiveMapCard(link: _link, gps: _gps, gpsMode: _activeMode == CarMode.gps),
                   const SizedBox(height: 10),
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
@@ -119,22 +165,92 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _modePanel(bool connected) {
-    switch (_selected) {
+    if (!connected) {
+      return const _ModePrompt(
+        key: ValueKey('disconnected'),
+        icon: Icons.usb_off,
+        title: 'Connect your car',
+        message: 'Connect the bridge by USB, then select and activate Manual or Auto mode.',
+      );
+    }
+
+    if (_activeMode == null) {
+      return const _ModePrompt(
+        key: ValueKey('not-active'),
+        icon: Icons.power_settings_new,
+        title: 'Mode not activated',
+        message: 'Choose Manual or Auto above, then press the Activate Mode button.',
+      );
+    }
+
+    switch (_activeMode!) {
       case CarMode.manual:
         return ManualControlCard(
-          key:       const ValueKey('manual'),
+          key: const ValueKey('manual'),
           connected: connected,
-          onDrive:   _link.drive,
-          onStop:    _gps.stopAll,
+          onDrive: _link.drive,
+          onStop: _gps.stopAll,
         );
       case CarMode.gps:
         return GpsCard(
-          key:    const ValueKey('gps'),
-          link:   _link,
+          key: const ValueKey('gps'),
+          link: _link,
           places: _places,
-          gps:    _gps,
+          gps: _gps,
         );
     }
+  }
+
+}
+
+class _ModePrompt extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+
+  const _ModePrompt({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.borderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: AppTheme.blueLight, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                )),
+                const SizedBox(height: 5),
+                Text(message, style: const TextStyle(
+                  color: AppTheme.textMuted,
+                  fontSize: 11,
+                  height: 1.4,
+                )),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

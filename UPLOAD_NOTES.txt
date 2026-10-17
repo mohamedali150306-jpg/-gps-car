@@ -1,0 +1,19 @@
+RoboCar GPS Controller - Integrated Project
+
+This project includes the map and operating-mode updates:
+- English-oriented Esri World Street Map tiles.
+- Separate Phone and Car buttons to center the map on live phone GPS or car GPS telemetry.
+- Explicit mode selection and Activate Mode button for Manual and Auto (GPS).
+- The selected mode must be activated before its control panel appears.
+- Switching modes sends a stop command and requires activation again.
+- GPS destination selection, Travel, and Return-to-Phone controls remain available in Auto (GPS) mode.
+
+Upload instructions:
+1. Extract this ZIP.
+2. Upload the CONTENTS of this folder to the ROOT of the GitHub repository. Do not put the whole project inside another nested folder.
+3. Commit and push the changes.
+4. Build the latest commit in CodeMagic.
+
+The UI changes have not been compiled in this environment. If CodeMagic reports a build error, use the new build log to diagnose it.
+
+Note: android/local.properties is machine-specific and is intentionally not included. Flutter normally generates it during a build.
