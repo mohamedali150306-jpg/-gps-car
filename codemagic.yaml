@@ -1,0 +1,28 @@
+workflows:
+  android-workflow:
+    name: RoboCar Android Build
+    max_build_duration: 60
+    environment:
+      flutter: 3.10.6
+      java: 11
+
+    scripts:
+      - name: Get packages
+        script: flutter pub get
+
+      - name: Analyze code
+        script: flutter analyze --no-fatal-infos || true
+
+      - name: Build release APK
+        script: flutter build apk --release
+
+    artifacts:
+      - build/**/*.apk
+
+    publishing:
+      email:
+        recipients:
+          - mohamedali150306@gmail.com
+        notify:
+          success: true
+          failure: true
