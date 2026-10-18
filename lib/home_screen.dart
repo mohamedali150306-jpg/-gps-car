@@ -9,6 +9,7 @@ import 'usb_picker_dialog.dart';
 import 'places_store.dart';
 import 'gps_controller.dart';
 import 'mode_card.dart';
+import 'manual_control_card.dart';
 import 'gps_card.dart';
 import 'sensor_card.dart';
 import 'log_card.dart';
@@ -25,12 +26,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final _link = CarLink();
   final _places = PlacesStore();
   late final GpsController _gps = GpsController(_link, _places);
-
-  final ScrollController _scrollController = ScrollController();
-  final GlobalKey _homeKey = GlobalKey();
-  final GlobalKey _mapKey = GlobalKey();
-  final GlobalKey _sensorKey = GlobalKey();
-  final GlobalKey _logKey = GlobalKey();
 
   CarMode _selected = CarMode.manual;
   CarMode? _activeMode;
@@ -94,8 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _message('Select GPS Mode and press Activate GPS Mode first.');
       return;
     }
-    await _scrollTo(_mapKey, navIndex: 1);
-    _message('Tap anywhere on the map to choose your destination.');
+    _message('Tap the map preview to open the interactive map and choose your destination.');
   }
 
   void _travelToDestination() {
@@ -141,46 +135,24 @@ class _HomeScreenState extends State<HomeScreen> {
     if (device != null) await _link.connect(device);
   }
 
-  Future<void> _scrollTo(GlobalKey key, {required int navIndex}) async {
-    setState(() => _selectedNav = navIndex);
-    final targetContext = key.currentContext;
-    if (targetContext == null) return;
-    await Scrollable.ensureVisible(
-      targetContext,
-      duration: const Duration(milliseconds: 380),
-      curve: Curves.easeOutCubic,
-      alignment: 0.04,
-    );
-  }
-
   void _onBottomNav(int index) {
-    switch (index) {
-      case 0:
-        setState(() => _selectedNav = 0);
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            0,
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeOutCubic,
-          );
-        }
-        break;
-      case 1:
-        _scrollTo(_mapKey, navIndex: 1);
-        break;
-      case 2:
-        _scrollTo(_sensorKey, navIndex: 2);
-        break;
-      case 3:
-        _scrollTo(_logKey, navIndex: 3);
-        break;
-      case 4:
-        _openSettings();
-        break;
+    if (index == 4) {
+      _openSettings();
+      return;
     }
+
+    if (index == 0 || index == 1) {
+      final nextMode = index == 0 ? CarMode.manual : CarMode.gps;
+      if (nextMode != _selected) _onModeChanged(nextMode);
+      setState(() => _selectedNav = index);
+      return;
+    }
+
+    setState(() => _selectedNav = index);
   }
 
   void _openSettings() {
+    final previousNavIndex = _selectedNav;
     setState(() => _selectedNav = 4);
     showModalBottomSheet<void>(
       context: context,
@@ -222,8 +194,72 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     ).whenComplete(() {
-      if (mounted && _selectedNav == 4) setState(() => _selectedNav = 0);
+      if (mounted && _selectedNav == 4) {
+        setState(() => _selectedNav = previousNavIndex);
+      }
     });
+  }
+
+  Future<void> _openInteractiveMap() async {
+    final gpsModeActive = _selected == CarMode.gps && _activeMode == CarMode.gps;
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (mapContext) => Scaffold(
+          backgroundColor: AppTheme.bgPrimary,
+          appBar: AppBar(
+            backgroundColor: AppTheme.bgDeep,
+            foregroundColor: AppTheme.textPrimary,
+            title: Text(gpsModeActive ? 'GPS Interactive Map' : 'Live Map'),
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: gpsModeActive ? AppTheme.greenBg : AppTheme.bgCard,
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(
+                        color: gpsModeActive ? AppTheme.greenBorder : AppTheme.borderBlue,
+                      ),
+                    ),
+                    child: Text(
+                      gpsModeActive
+                          ? 'GPS ACTIVE'
+                          : (_activeMode == CarMode.manual ? 'MANUAL ACTIVE' : 'VIEW ONLY'),
+                      style: TextStyle(
+                        color: gpsModeActive ? AppTheme.green : AppTheme.blueLight,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+              child: LayoutBuilder(
+                builder: (context, constraints) => LiveMapCard(
+                  key: const ValueKey('fullscreen-interactive-map'),
+                  link: _link,
+                  gps: _gps,
+                  gpsMode: gpsModeActive,
+                  height: constraints.maxHeight,
+                  showNavigationActions: gpsModeActive,
+                  previewOnly: false,
+                  selectedDestination: _selectedDestination,
+                  onDestinationSelected: _onMapDestinationSelected,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _openAdvancedGps() {
@@ -256,7 +292,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _gps.dispose();
     _link.dispose();
     _places.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -264,7 +299,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final connected = _link.connected;
     final connecting = _link.state == LinkState.connecting;
-    final mapHeight = (MediaQuery.sizeOf(context).height * .36).clamp(300.0, 420.0).toDouble();
 
     return Scaffold(
       backgroundColor: AppTheme.bgPrimary,
@@ -282,79 +316,259 @@ class _HomeScreenState extends State<HomeScreen> {
               lowBattAlert: _link.lowBattAlert,
               onUsbTap: _toggleLink,
             ),
-            Expanded(
-              child: ListView(
-                key: _homeKey,
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
-                children: [
-                  ModeCard(
-                    current: _selected,
-                    activeMode: _activeMode,
-                    connected: connected,
-                    onChanged: _onModeChanged,
-                    onActivate: _activateSelectedMode,
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    key: _mapKey,
-                    child: LiveMapCard(
-                      link: _link,
-                      gps: _gps,
-                      gpsMode: _activeMode == CarMode.gps,
-                      height: mapHeight,
-                      showNavigationActions: false,
-                      onDestinationSelected: _onMapDestinationSelected,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _CompactManualCard(
-                          enabled: connected && _activeMode == CarMode.manual,
-                          onDrive: _link.drive,
-                          onStop: _gps.stopAll,
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: _QuickGpsCard(
-                          connected: connected,
-                          active: _activeMode == CarMode.gps,
-                          destination: _selectedDestination,
-                          onSelectDestination: _selectDestination,
-                          onTravel: _travelToDestination,
-                          onReturn: _returnToPhone,
-                          onAdvanced: _openAdvancedGps,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  _EmergencyStopButton(enabled: connected, onTap: _gps.stopAll),
-                  const SizedBox(height: 10),
-                  Container(
-                    key: _sensorKey,
-                    child: SensorCard(
-                      front: _link.distFront,
-                      right: _link.distRight,
-                      back: _link.distBack,
-                      left: _link.distLeft,
-                      arc: _link.arc,
-                      connected: connected && _link.carOnline,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(key: _logKey, child: LogCard(logs: _link.logs)),
-                ],
-              ),
-            ),
+            Expanded(child: _buildCurrentPage(connected)),
           ],
         ),
       ),
-      bottomNavigationBar: _BottomNavBar(selectedIndex: _selectedNav, onTap: _onBottomNav),
+      bottomNavigationBar: _BottomNavBar(
+        selectedIndex: _selectedNav,
+        onTap: _onBottomNav,
+      ),
+    );
+  }
+
+  Widget _buildCurrentPage(bool connected) {
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final compactMapHeight = (screenHeight * .30).clamp(230.0, 330.0).toDouble();
+    final gpsMapHeight = (screenHeight * .42).clamp(300.0, 460.0).toDouble();
+    final contentPadding = const EdgeInsets.fromLTRB(12, 8, 12, 18);
+
+    if (_selectedNav == 2) {
+      return ListView(
+        padding: contentPadding,
+        children: [
+          _PageHeading(
+            title: 'Ultrasonic Sensors',
+            subtitle: 'Live distance readings from all four sides',
+            icon: Icons.sensors_rounded,
+          ),
+          const SizedBox(height: 12),
+          SensorCard(
+            front: _link.distFront,
+            right: _link.distRight,
+            back: _link.distBack,
+            left: _link.distLeft,
+            arc: _link.arc,
+            connected: connected && _link.carOnline,
+          ),
+          const SizedBox(height: 12),
+          _EmergencyStopButton(enabled: connected, onTap: _gps.stopAll),
+        ],
+      );
+    }
+
+    if (_selectedNav == 3) {
+      return ListView(
+        padding: contentPadding,
+        children: [
+          _PageHeading(
+            title: 'Activity Logs',
+            subtitle: 'Connection, mode and navigation events',
+            icon: Icons.receipt_long_rounded,
+          ),
+          const SizedBox(height: 12),
+          LogCard(logs: _link.logs),
+        ],
+      );
+    }
+
+    if (_selectedNav == 1) {
+      return ListView(
+        padding: contentPadding,
+        children: [
+          _ModePageBanner(
+            mode: CarMode.gps,
+            activeMode: _activeMode,
+            connected: connected,
+            onActivate: _activateSelectedMode,
+          ),
+          const SizedBox(height: 10),
+          LiveMapCard(
+            key: const ValueKey('gps-live-map'),
+            link: _link,
+            gps: _gps,
+            gpsMode: _activeMode == CarMode.gps,
+            height: gpsMapHeight,
+            showNavigationActions: false,
+            previewOnly: true,
+            onPreviewTap: () => _openInteractiveMap(),
+            selectedDestination: _selectedDestination,
+            onDestinationSelected: _onMapDestinationSelected,
+          ),
+          const SizedBox(height: 10),
+          _QuickGpsCard(
+            connected: connected,
+            active: _activeMode == CarMode.gps,
+            destination: _selectedDestination,
+            onSelectDestination: _selectDestination,
+            onTravel: _travelToDestination,
+            onReturn: _returnToPhone,
+            onAdvanced: _openAdvancedGps,
+          ),
+          const SizedBox(height: 10),
+          _EmergencyStopButton(enabled: connected, onTap: _gps.stopAll),
+          const SizedBox(height: 10),
+          SensorCard(
+            front: _link.distFront,
+            right: _link.distRight,
+            back: _link.distBack,
+            left: _link.distLeft,
+            arc: _link.arc,
+            connected: connected && _link.carOnline,
+          ),
+        ],
+      );
+    }
+
+    // Manual page (default): map remains visible while the operator drives.
+    return ListView(
+      padding: contentPadding,
+      children: [
+        _ModePageBanner(
+          mode: CarMode.manual,
+          activeMode: _activeMode,
+          connected: connected,
+          onActivate: _activateSelectedMode,
+        ),
+        const SizedBox(height: 10),
+        LiveMapCard(
+          key: const ValueKey('manual-live-map'),
+          link: _link,
+          gps: _gps,
+          gpsMode: false,
+          height: compactMapHeight,
+          showNavigationActions: false,
+          previewOnly: true,
+          onPreviewTap: () => _openInteractiveMap(),
+        ),
+        const SizedBox(height: 10),
+        ManualControlCard(
+          connected: connected && _activeMode == CarMode.manual,
+          onDrive: _link.drive,
+          onStop: _gps.stopAll,
+        ),
+        const SizedBox(height: 10),
+        _EmergencyStopButton(enabled: connected, onTap: _gps.stopAll),
+        const SizedBox(height: 10),
+        SensorCard(
+          front: _link.distFront,
+          right: _link.distRight,
+          back: _link.distBack,
+          left: _link.distLeft,
+          arc: _link.arc,
+          connected: connected && _link.carOnline,
+        ),
+      ],
+    );
+  }
+
+}
+
+class _PageHeading extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  const _PageHeading({required this.title, required this.subtitle, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF092846), Color(0xFF04162B)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: AppTheme.borderBlue, width: .8),
+      ),
+      child: Row(children: [
+        Icon(icon, size: 27, color: AppTheme.skyBlue),
+        const SizedBox(width: 11),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 3),
+          Text(subtitle, style: const TextStyle(color: AppTheme.blueLight, fontSize: 11)),
+        ])),
+      ]),
+    );
+  }
+}
+
+class _ModePageBanner extends StatelessWidget {
+  final CarMode mode;
+  final CarMode? activeMode;
+  final bool connected;
+  final VoidCallback onActivate;
+
+  const _ModePageBanner({
+    required this.mode,
+    required this.activeMode,
+    required this.connected,
+    required this.onActivate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isManual = mode == CarMode.manual;
+    final active = activeMode == mode;
+    final title = isManual ? 'Manual Mode' : 'GPS Autonomous Mode';
+    final subtitle = isManual
+        ? 'Drive the car directly using the directional controls.'
+        : 'Choose a point on the map, then send the car to that destination.';
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isManual
+              ? const [Color(0xFF073E93), Color(0xFF06223F)]
+              : const [Color(0xFF07304A), Color(0xFF06192D)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: active ? AppTheme.green : AppTheme.cyan, width: active ? 1.3 : .9),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Container(
+            width: 45,
+            height: 45,
+            decoration: BoxDecoration(color: AppTheme.bgDeep, borderRadius: BorderRadius.circular(13), border: Border.all(color: AppTheme.borderBlue)),
+            child: Icon(isManual ? Icons.gamepad_rounded : Icons.location_on_rounded, color: AppTheme.skyBlue, size: 28),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 3),
+            Text(subtitle, style: const TextStyle(color: AppTheme.blueLight, fontSize: 10, height: 1.2)),
+          ])),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(color: active ? AppTheme.greenBg : AppTheme.bgDeep, borderRadius: BorderRadius.circular(9), border: Border.all(color: active ? AppTheme.greenBorder : AppTheme.borderColor)),
+            child: Text(active ? 'ACTIVE' : 'READY', style: TextStyle(color: active ? AppTheme.green : AppTheme.textMuted, fontSize: 9, fontWeight: FontWeight.w800)),
+          ),
+        ]),
+        const SizedBox(height: 11),
+        SizedBox(
+          height: 42,
+          child: ElevatedButton.icon(
+            onPressed: connected && !active ? onActivate : null,
+            icon: Icon(active ? Icons.check_circle_rounded : Icons.power_settings_new_rounded, size: 18),
+            label: Text(active ? '${isManual ? 'MANUAL' : 'GPS'} MODE ACTIVE' : 'ACTIVATE ${isManual ? 'MANUAL' : 'GPS'} MODE', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: .4)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: active ? AppTheme.greenBg : AppTheme.blue,
+              disabledBackgroundColor: active ? AppTheme.greenBg : AppTheme.bgDeep,
+              foregroundColor: active ? AppTheme.green : Colors.white,
+              disabledForegroundColor: active ? AppTheme.green : AppTheme.textMuted,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11), side: BorderSide(color: active ? AppTheme.greenBorder : AppTheme.borderBlue)),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 }
@@ -859,8 +1073,8 @@ class _BottomNavBar extends StatelessWidget {
           iconSize: 22,
           showUnselectedLabels: true,
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-            BottomNavigationBarItem(icon: Icon(Icons.location_on_outlined), label: 'Map'),
+            BottomNavigationBarItem(icon: Icon(Icons.gamepad_rounded), label: 'Manual'),
+            BottomNavigationBarItem(icon: Icon(Icons.navigation_rounded), label: 'GPS'),
             BottomNavigationBarItem(icon: Icon(Icons.sensors_rounded), label: 'Sensors'),
             BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), label: 'Logs'),
             BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Settings'),

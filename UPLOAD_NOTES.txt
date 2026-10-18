@@ -6,7 +6,7 @@ This package keeps the existing Flutter app and includes a redesigned home scree
 - Two large Manual Mode and GPS Mode selection tiles.
 - Separate Activate Mode button; changing the selected mode stops existing drive/navigation and requires activation again.
 - Dark Esri basemap and labels/reference layer.
-- Separate Phone and Car map buttons to recenter on live phone GPS and car GPS telemetry.
+- Map previews are read-only and open a full-screen interactive map when tapped. Separate Phone and Car buttons recenter the full-screen map on live phone GPS or car GPS telemetry.
 - Map taps choose a destination only when GPS mode is active; the GPS panel provides Travel and Return to Phone actions.
 - Manual 4-direction hold controls with repeated DRIVE commands and three speed levels.
 - Large Emergency Stop control.

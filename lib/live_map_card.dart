@@ -18,6 +18,10 @@ class LiveMapCard extends StatefulWidget {
   final bool gpsMode;
   final double height;
   final bool showNavigationActions;
+  /// When true, the map is a read-only preview. Tapping it calls [onPreviewTap].
+  final bool previewOnly;
+  final VoidCallback? onPreviewTap;
+  final LatLng? selectedDestination;
   final ValueChanged<LatLng>? onDestinationSelected;
 
   const LiveMapCard({
@@ -27,6 +31,9 @@ class LiveMapCard extends StatefulWidget {
     required this.gpsMode,
     this.height = 350,
     this.showNavigationActions = true,
+    this.previewOnly = false,
+    this.onPreviewTap,
+    this.selectedDestination,
     this.onDestinationSelected,
   });
 
@@ -46,6 +53,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
   @override
   void initState() {
     super.initState();
+    _destination = widget.selectedDestination;
     widget.link.addListener(_refresh);
     _startPhoneLocation();
   }
@@ -53,6 +61,9 @@ class _LiveMapCardState extends State<LiveMapCard> {
   @override
   void didUpdateWidget(covariant LiveMapCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedDestination != widget.selectedDestination) {
+      _destination = widget.selectedDestination;
+    }
     if (oldWidget.link != widget.link) {
       oldWidget.link.removeListener(_refresh);
       widget.link.addListener(_refresh);
@@ -218,7 +229,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
   @override
   Widget build(BuildContext context) {
     final car = _car;
-    return Container(
+    final mapCard = Container(
       height: widget.height,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -296,7 +307,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
                     ],
                   ),
                 MarkerLayer(markers: _markers()),
-                Align(
+                if (!widget.previewOnly) Align(
                   alignment: Alignment.topRight,
                   child: Padding(
                     padding: const EdgeInsets.all(8),
@@ -401,6 +412,46 @@ class _LiveMapCardState extends State<LiveMapCard> {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+
+    if (!widget.previewOnly) return mapCard;
+
+    // In preview mode, absorb map gestures and expose only a tap-to-open action.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onPreviewTap,
+      child: Stack(
+        children: [
+          IgnorePointer(child: mapCard),
+          Positioned(
+            top: 43,
+            right: 10,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppTheme.bgPrimary.withOpacity(.94),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.borderBlue),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.open_in_full_rounded, color: AppTheme.blueLight, size: 14),
+                  SizedBox(width: 6),
+                  Text(
+                    'Tap to open interactive map',
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
