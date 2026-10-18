@@ -6,7 +6,7 @@ Connection architecture: **Android phone → USB OTG → bridge ESP32 → ESP-NO
 
 The home screen has a dark navy/electric-blue dashboard style with a compact connection and battery header, Manual Mode and GPS Mode tiles, and an explicit **Activate Mode** button. Switching the selected mode cancels previous drive/navigation commands; the selected mode must be activated again before its matching controls are enabled.
 
-The map on each mode page is a read-only preview. Tap the preview to open a full-screen interactive map. The interactive map uses Esri dark-gray map tiles with a separate label/reference layer; **Phone** centers on the phone's live GPS position, while **Car** centers on the latest valid car GPS telemetry. When GPS mode is activated, tap the full-screen map to choose a destination, then use **Travel** or **Return to Phone**. The drawn segment on the map is a straight line between coordinates, not turn-by-turn road routing.
+The live map uses Esri dark-gray map tiles with a separate label/reference layer. The **Phone** button centers on the phone's live GPS position, while **Car** centers on the latest valid car GPS telemetry. Tap the map while GPS mode is active to select a destination, then use **Travel to Destination** or **Return to Phone**. The drawn segment on the map is a straight line between coordinates, not turn-by-turn road routing.
 
 The compact Manual Control panel has forward, reverse, left, right, stop, and three speed levels. A direction command repeats while pressed and STOP is sent on release. The full app also retains the advanced GPS tools for saved places, saving phone/car positions, and compass calibration.
 
@@ -17,7 +17,7 @@ The four ultrasonic sensor cards highlight readings **below 10 cm in red**. The 
 - `lib/main.dart` — app entry and theme setup
 - `lib/home_screen.dart` — home dashboard and actions
 - `lib/app_theme.dart` — navy/blue color palette
-- `lib/live_map_card.dart` — non-interactive map preview and full-screen interactive phone/car map, destination selection, map centering
+- `lib/live_map_card.dart` — live phone/car map, destination selection, map centering
 - `lib/mode_card.dart` — Manual/GPS mode selector and activation
 - `lib/car_link.dart` — USB connection, telemetry, and command protocol
 - `lib/gps_controller.dart` — GPS destination / return-to-phone logic
