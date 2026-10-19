@@ -264,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final connected = _link.connected;
     final connecting = _link.state == LinkState.connecting;
-    final mapHeight = (MediaQuery.sizeOf(context).height * .36).clamp(300.0, 420.0).toDouble();
+    final mapHeight = (MediaQuery.sizeOf(context).height * .31).clamp(250.0, 340.0).toDouble();
 
     return Scaffold(
       backgroundColor: AppTheme.bgPrimary,
@@ -308,30 +308,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _CompactManualCard(
-                          enabled: connected && _activeMode == CarMode.manual,
-                          onDrive: _link.drive,
-                          onStop: _gps.stopAll,
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: _QuickGpsCard(
-                          connected: connected,
-                          active: _activeMode == CarMode.gps,
-                          destination: _selectedDestination,
-                          onSelectDestination: _selectDestination,
-                          onTravel: _travelToDestination,
-                          onReturn: _returnToPhone,
-                          onAdvanced: _openAdvancedGps,
-                        ),
-                      ),
-                    ],
-                  ),
+                  if (_selected == CarMode.manual)
+                    _CompactManualCard(
+                      enabled: connected && _activeMode == CarMode.manual,
+                      onDrive: _link.drive,
+                      onStop: _gps.stopAll,
+                    )
+                  else
+                    _QuickGpsCard(
+                      connected: connected,
+                      active: _activeMode == CarMode.gps,
+                      destination: _selectedDestination,
+                      onSelectDestination: _selectDestination,
+                      onTravel: _travelToDestination,
+                      onReturn: _returnToPhone,
+                      onAdvanced: _openAdvancedGps,
+                    ),
                   const SizedBox(height: 10),
                   _EmergencyStopButton(enabled: connected, onTap: _gps.stopAll),
                   const SizedBox(height: 10),
@@ -398,11 +390,17 @@ class _TopBar extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: 42,
+              Image.asset(
+                'assets/robocar.png',
+                width: 62,
                 height: 42,
-                decoration: BoxDecoration(color: AppTheme.bgDeep, borderRadius: BorderRadius.circular(13), border: Border.all(color: AppTheme.borderBlue)),
-                child: const Icon(Icons.smart_toy_rounded, color: AppTheme.blueLight, size: 29),
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(color: AppTheme.bgDeep, borderRadius: BorderRadius.circular(13), border: Border.all(color: AppTheme.borderBlue)),
+                  child: const Icon(Icons.smart_toy_rounded, color: AppTheme.blueLight, size: 29),
+                ),
               ),
               const SizedBox(width: 9),
               const Expanded(
@@ -489,6 +487,12 @@ class _TopBar extends StatelessWidget {
   }
 }
 
+BoxDecoration _panelDecoration() => BoxDecoration(
+      gradient: const LinearGradient(colors: [Color(0xFF061B30), Color(0xFF041326)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: AppTheme.borderBlue, width: .8),
+    );
+
 class _CompactManualCard extends StatefulWidget {
   final bool enabled;
   final void Function(double speed, double turn) onDrive;
@@ -550,118 +554,171 @@ class _CompactManualCardState extends State<_CompactManualCard> {
     super.dispose();
   }
 
+  // The round pad is split by an X: top / bottom / left / right wedges.
+  // The centre circle is the stop button (handled on tap-up).
+  String? _directionAt(Offset p, double side) {
+    final c = Offset(side / 2, side / 2);
+    final d = p - c;
+    if (d.distance < side * .17) return null;
+    if (d.dx.abs() > d.dy.abs()) return d.dx > 0 ? 'R' : 'L';
+    return d.dy > 0 ? 'B' : 'F';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(9),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF061B30), Color(0xFF041326)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.borderBlue, width: .8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Icon(Icons.gamepad_rounded, color: AppTheme.skyBlue, size: 19),
-            const SizedBox(width: 5),
-            const Expanded(child: Text('Manual Control', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppTheme.textPrimary))),
-          ]),
-          const SizedBox(height: 9),
-          Opacity(
-            opacity: widget.enabled ? 1 : .42,
-            child: LayoutBuilder(builder: (context, constraints) {
-              final dpadSide = (constraints.maxWidth * .62).clamp(88.0, 150.0).toDouble();
-              final speedWidth = (constraints.maxWidth - dpadSide - 6).clamp(40.0, 82.0).toDouble();
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: dpadSide,
-                    height: dpadSide,
-                    child: GridView.count(
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: EdgeInsets.zero,
-                      crossAxisCount: 3,
-                      mainAxisSpacing: 3,
-                      crossAxisSpacing: 3,
-                      children: [
-                        const SizedBox.shrink(),
-                        _directionButton('F', Icons.keyboard_arrow_up_rounded),
-                        const SizedBox.shrink(),
-                        _directionButton('L', Icons.keyboard_arrow_left_rounded),
-                        GestureDetector(
-                          onTap: _release,
-                          child: Container(
-                            decoration: BoxDecoration(shape: BoxShape.circle, color: AppTheme.blue, border: Border.all(color: AppTheme.cyan, width: 2), boxShadow: [BoxShadow(color: AppTheme.blue.withOpacity(.30), blurRadius: 8)]),
-                            child: const Icon(Icons.stop_rounded, color: Colors.white, size: 17),
-                          ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: _panelDecoration(),
+      child: Opacity(
+        opacity: widget.enabled ? 1 : .55,
+        child: LayoutBuilder(builder: (context, constraints) {
+          final side = (constraints.maxWidth * .44).clamp(120.0, 170.0).toDouble();
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 5,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(children: [
+                      Icon(Icons.gamepad_rounded, color: AppTheme.skyBlue, size: 22),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Manual Control', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary))),
+                    ]),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: SizedBox(
+                        width: side,
+                        height: side,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTapDown: (d) {
+                            final dir = _directionAt(d.localPosition, side);
+                            if (dir != null) _press(dir);
+                          },
+                          onTapUp: (_) => _release(),
+                          onTapCancel: _release,
+                          child: CustomPaint(painter: _DpadPainter(held: _held)),
                         ),
-                        _directionButton('R', Icons.keyboard_arrow_right_rounded),
-                        const SizedBox.shrink(),
-                        _directionButton('B', Icons.keyboard_arrow_down_rounded),
-                        const SizedBox.shrink(),
-                      ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  SizedBox(
-                    width: speedWidth,
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 5,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.bgDeep,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.borderBlue, width: .8),
+                    ),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Icon(Icons.speed_rounded, color: AppTheme.blueLight, size: 17),
-                        const SizedBox(height: 3),
-                        const Text('SPEED', style: TextStyle(fontSize: 8, letterSpacing: .5, color: AppTheme.textMuted, fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 4),
-                        for (final level in [1, 2, 3])
-                          GestureDetector(
-                            onTap: widget.enabled ? () => setState(() => _speedLevel = level) : null,
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 120),
-                              width: double.infinity,
-                              margin: const EdgeInsets.only(bottom: 3),
-                              padding: const EdgeInsets.symmetric(vertical: 5),
-                              decoration: BoxDecoration(
-                                color: _speedLevel == level ? AppTheme.blue : AppTheme.bgDeep,
-                                borderRadius: BorderRadius.circular(7),
-                                border: Border.all(color: _speedLevel == level ? AppTheme.cyan : AppTheme.borderColor, width: .7),
-                              ),
-                              child: Text('$level', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: _speedLevel == level ? Colors.white : AppTheme.textMuted, fontWeight: FontWeight.w800)),
-                            ),
-                          ),
+                        const Row(children: [
+                          Icon(Icons.speed_rounded, color: AppTheme.blueLight, size: 20),
+                          SizedBox(width: 7),
+                          Text('Speed', style: TextStyle(fontSize: 13, color: AppTheme.textPrimary)),
+                        ]),
+                        const SizedBox(height: 8),
+                        _speedRow(1, 'Slow'),
+                        _speedRow(2, 'Medium'),
+                        _speedRow(3, 'Fast'),
                       ],
                     ),
                   ),
-                ],
-              );
-            }),
-          ),
-          const SizedBox(height: 7),
-          _StatePill(text: widget.enabled ? 'Manual mode active' : 'Activate Manual mode above', active: widget.enabled),
-        ],
+                ),
+              ),
+            ],
+          );
+        }),
       ),
     );
   }
 
-  Widget _directionButton(String dir, IconData icon) {
-    final down = _held == dir;
+  Widget _speedRow(int level, String name) {
+    final selected = _speedLevel == level;
     return GestureDetector(
-      onTapDown: (_) => _press(dir),
-      onTapUp: (_) => _release(),
-      onTapCancel: _release,
+      onTap: widget.enabled ? () => setState(() => _speedLevel = level) : null,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 80),
+        duration: const Duration(milliseconds: 120),
+        height: 34,
+        margin: const EdgeInsets.only(bottom: 5),
         decoration: BoxDecoration(
-          color: down ? AppTheme.blue : const Color(0xFF092744),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: down ? AppTheme.cyan : AppTheme.borderBlue, width: down ? 1.6 : .8),
+          color: selected ? AppTheme.blue : AppTheme.bgBlue,
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: selected ? AppTheme.cyan : AppTheme.borderBlue, width: selected ? 1.2 : .8),
         ),
-        child: Icon(icon, color: widget.enabled ? AppTheme.blueLight : AppTheme.textDim, size: 24),
+        child: Row(children: [
+          SizedBox(width: 30, child: Text('$level', textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.textPrimary))),
+          Container(width: 1, height: 16, color: AppTheme.textPrimary.withOpacity(.25)),
+          const SizedBox(width: 8),
+          Expanded(child: Text('($name)', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: selected ? Colors.white : AppTheme.textMuted))),
+        ]),
       ),
     );
   }
+}
+
+class _DpadPainter extends CustomPainter {
+  final String held;
+  const _DpadPainter({required this.held});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width / 2 - 2;
+
+    // Pressed wedge highlight.
+    final wedgeStart = switch (held) { 'F' => -135.0, 'R' => -45.0, 'B' => 45.0, 'L' => 135.0, _ => null };
+
+    canvas.drawCircle(c, r, Paint()..color = const Color(0xFF05182C));
+    if (wedgeStart != null) {
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: r),
+        wedgeStart * 3.1415926535 / 180,
+        3.1415926535 / 2,
+        true,
+        Paint()..color = AppTheme.blue.withOpacity(.55),
+      );
+    }
+    canvas.drawCircle(c, r, Paint()..style = PaintingStyle.stroke..strokeWidth = 2.4..color = AppTheme.blue);
+
+    // X dividers.
+    final line = Paint()..color = const Color(0xFF020B18)..strokeWidth = 3..strokeCap = StrokeCap.round;
+    final k = r * .7071;
+    final inner = r * .24;
+    final ik = inner * .7071;
+    for (final sx in [-1.0, 1.0]) {
+      for (final sy in [-1.0, 1.0]) {
+        canvas.drawLine(c + Offset(sx * ik, sy * ik), c + Offset(sx * k, sy * k), line);
+      }
+    }
+
+    // Arrows.
+    final arrow = Paint()..color = AppTheme.blueLight;
+    final d = r * .66;
+    final t = r * .15;
+    Path tri(Offset tip, Offset a, Offset b) => Path()..moveTo(tip.dx, tip.dy)..lineTo(a.dx, a.dy)..lineTo(b.dx, b.dy)..close();
+    canvas.drawPath(tri(c + Offset(0, -d - t), c + Offset(-t * 1.1, -d + t), c + Offset(t * 1.1, -d + t)), arrow);
+    canvas.drawPath(tri(c + Offset(0, d + t), c + Offset(-t * 1.1, d - t), c + Offset(t * 1.1, d - t)), arrow);
+    canvas.drawPath(tri(c + Offset(-d - t, 0), c + Offset(-d + t, -t * 1.1), c + Offset(-d + t, t * 1.1)), arrow);
+    canvas.drawPath(tri(c + Offset(d + t, 0), c + Offset(d - t, -t * 1.1), c + Offset(d - t, t * 1.1)), arrow);
+
+    // Centre stop button.
+    canvas.drawCircle(c, inner + 6, Paint()..color = AppTheme.blue.withOpacity(.28)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+    canvas.drawCircle(c, inner, Paint()..color = AppTheme.blue);
+    canvas.drawCircle(c, inner, Paint()..style = PaintingStyle.stroke..strokeWidth = 2.4..color = AppTheme.cyan);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DpadPainter old) => old.held != held;
 }
 
 class _QuickGpsCard extends StatelessWidget {
@@ -686,113 +743,90 @@ class _QuickGpsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = connected && active;
+    final destText = destination == null
+        ? 'Select Destination'
+        : 'Destination set  ·  ${destination!.latitude.toStringAsFixed(4)}, ${destination!.longitude.toStringAsFixed(4)}';
     return Container(
-      padding: const EdgeInsets.all(9),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF061B30), Color(0xFF041326)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.borderBlue, width: .8),
-      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      decoration: _panelDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Row(children: [
-            Icon(Icons.location_on_rounded, color: AppTheme.blueLight, size: 19),
-            SizedBox(width: 5),
-            Expanded(child: Text('GPS Navigation', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppTheme.textPrimary))),
+            Icon(Icons.location_on_rounded, color: AppTheme.blueLight, size: 24),
+            SizedBox(width: 8),
+            Expanded(child: Text('GPS Navigation', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary))),
           ]),
-          const SizedBox(height: 9),
-          OutlinedButton(
-            onPressed: onSelectDestination,
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(0, 39),
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-              foregroundColor: AppTheme.blueLight,
-              side: const BorderSide(color: AppTheme.borderBlue),
-              backgroundColor: AppTheme.bgDeep,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: onSelectDestination,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: AppTheme.bgDeep,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.borderBlue, width: .8),
+              ),
+              child: Row(children: [
+                const Icon(Icons.place_rounded, size: 20, color: AppTheme.blueLight),
+                const SizedBox(width: 12),
+                Expanded(child: Text(destText, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary))),
+                const Icon(Icons.chevron_right_rounded, size: 20, color: AppTheme.textPrimary),
+              ]),
             ),
-            child: Row(children: [
-              const Icon(Icons.place_rounded, size: 18),
-              const SizedBox(width: 5),
-              Expanded(child: Text(destination == null ? 'Select Destination' : 'Destination set ✓', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600))),
-              const Icon(Icons.chevron_right_rounded, size: 17),
-            ]),
           ),
-          if (destination != null) ...[
-            const SizedBox(height: 4),
-            Text('${destination!.latitude.toStringAsFixed(4)}, ${destination!.longitude.toStringAsFixed(4)}', style: const TextStyle(fontSize: 8, color: AppTheme.textMuted), maxLines: 1, overflow: TextOverflow.ellipsis),
-          ],
-          const SizedBox(height: 7),
+          const SizedBox(height: 8),
           SizedBox(
-            height: 39,
-            child: ElevatedButton.icon(
+            height: 44,
+            child: ElevatedButton(
               onPressed: enabled && destination != null ? onTravel : null,
-              icon: const Icon(Icons.play_arrow_rounded, size: 18),
-              label: const FittedBox(fit: BoxFit.scaleDown, child: Text('Travel to Destination', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.blue,
-                disabledBackgroundColor: AppTheme.bgDeep,
+                disabledBackgroundColor: AppTheme.bgBlue,
                 foregroundColor: Colors.white,
                 disabledForegroundColor: AppTheme.textDim,
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: AppTheme.borderBlue)),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: AppTheme.cyan, width: .8)),
               ),
+              child: const Row(children: [
+                Icon(Icons.play_arrow_rounded, size: 26),
+                Expanded(child: Center(child: Text('Travel to Destination', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)))),
+                SizedBox(width: 26),
+              ]),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           SizedBox(
-            height: 37,
-            child: OutlinedButton.icon(
+            height: 40,
+            child: OutlinedButton(
               onPressed: enabled ? onReturn : null,
-              icon: const Icon(Icons.home_rounded, size: 17),
-              label: const FittedBox(fit: BoxFit.scaleDown, child: Text('Return to Phone', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700))),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.blueLight,
+                foregroundColor: AppTheme.textPrimary,
                 disabledForegroundColor: AppTheme.textDim,
-                side: const BorderSide(color: AppTheme.borderBlue),
+                side: const BorderSide(color: AppTheme.blue, width: 1.2),
                 backgroundColor: AppTheme.bgDeep,
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
+              child: const Row(children: [
+                Icon(Icons.home_rounded, size: 22, color: AppTheme.blueLight),
+                Expanded(child: Center(child: Text('Return to Phone', style: TextStyle(fontSize: 13)))),
+                SizedBox(width: 22),
+              ]),
             ),
           ),
-          const SizedBox(height: 3),
           Align(
             alignment: Alignment.center,
             child: TextButton(
               onPressed: onAdvanced,
-              style: TextButton.styleFrom(foregroundColor: AppTheme.textMuted, padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0), minimumSize: const Size(0, 22), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-              child: const Text('Advanced GPS tools', style: TextStyle(fontSize: 9, decoration: TextDecoration.underline)),
+              style: TextButton.styleFrom(foregroundColor: AppTheme.textMuted, padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(0, 24), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+              child: const Text('Advanced GPS tools', style: TextStyle(fontSize: 10, decoration: TextDecoration.underline)),
             ),
           ),
-          const SizedBox(height: 3),
-          _StatePill(text: active ? 'GPS mode active' : 'Activate GPS mode above', active: active),
         ],
       ),
-    );
-  }
-}
-
-class _StatePill extends StatelessWidget {
-  final String text;
-  final bool active;
-  const _StatePill({required this.text, required this.active});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-      decoration: BoxDecoration(
-        color: active ? AppTheme.greenBg : AppTheme.bgDeep,
-        border: Border.all(color: active ? AppTheme.greenBorder : AppTheme.borderColor, width: .7),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(children: [
-        Icon(active ? Icons.check_circle_rounded : Icons.lock_outline_rounded, size: 11, color: active ? AppTheme.green : AppTheme.textDim),
-        const SizedBox(width: 4),
-        Expanded(child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, color: active ? AppTheme.green : AppTheme.textMuted, fontWeight: FontWeight.w600))),
-      ]),
     );
   }
 }
@@ -805,7 +839,7 @@ class _EmergencyStopButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Opacity(
-      opacity: enabled ? 1 : .45,
+      opacity: enabled ? 1 : .55,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -813,17 +847,27 @@ class _EmergencyStopButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            height: 46,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF4A1122), Color(0xFF2B0D1A)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              gradient: const LinearGradient(colors: [Color(0xFF5A1426), Color(0xFF3A0F1C)], begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppTheme.red, width: 1.5),
+              border: Border.all(color: AppTheme.red, width: 1.4),
               boxShadow: [BoxShadow(color: AppTheme.red.withOpacity(.12), blurRadius: 12)],
             ),
-            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.stop_circle_rounded, color: AppTheme.red, size: 25),
-              SizedBox(width: 10),
-              Text('EMERGENCY STOP', style: TextStyle(color: Color(0xFFFFB3C0), fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: .6)),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: ShapeDecoration(color: AppTheme.red, shape: StarBorder.polygon(sides: 8, pointRounding: .15)),
+                child: Container(
+                  width: 15,
+                  height: 15,
+                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text('EMERGENCY STOP', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: .3)),
             ]),
           ),
         ),
@@ -854,10 +898,11 @@ class _BottomNavBar extends StatelessWidget {
           backgroundColor: const Color(0xFF031225),
           selectedItemColor: AppTheme.skyBlue,
           unselectedItemColor: AppTheme.textMuted,
-          selectedFontSize: 10,
-          unselectedFontSize: 10,
-          iconSize: 22,
-          showUnselectedLabels: true,
+          selectedFontSize: 0,
+          unselectedFontSize: 0,
+          iconSize: 26,
+          showSelectedLabels: false,
+          showUnselectedLabels: false,
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
             BottomNavigationBarItem(icon: Icon(Icons.location_on_outlined), label: 'Map'),

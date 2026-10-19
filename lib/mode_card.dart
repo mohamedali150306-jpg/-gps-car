@@ -25,10 +25,7 @@ class ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final modeLabel = current == CarMode.manual ? 'Manual' : 'GPS';
-    final activationLabel = _isActive
-        ? (current == CarMode.manual ? 'MANUAL MODE ACTIVE' : 'GPS MODE ACTIVE')
-        : 'ACTIVATE $modeLabel MODE';
+    final activationLabel = _isActive ? 'Mode Active' : 'Activate Mode';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -60,7 +57,7 @@ class ModeCard extends StatelessWidget {
         ),
         const SizedBox(height: 9),
         SizedBox(
-          height: 42,
+          height: 46,
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
@@ -70,8 +67,8 @@ class ModeCard extends StatelessWidget {
             ),
             child: ElevatedButton.icon(
               onPressed: connected && !_isActive ? onActivate : null,
-              icon: Icon(_isActive ? Icons.check_circle_rounded : Icons.power_settings_new_rounded, size: 18),
-              label: Text(activationLabel, style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: .5, fontSize: 12)),
+              icon: Icon(_isActive ? Icons.check_circle_rounded : Icons.power_settings_new_rounded, size: 24),
+              label: Text(activationLabel, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _isActive ? AppTheme.greenBg : AppTheme.blue,
                 foregroundColor: _isActive ? AppTheme.green : Colors.white,
@@ -142,8 +139,8 @@ class _ModeTile extends StatelessWidget {
                     Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
                     const SizedBox(height: 3),
-                    Text(active ? 'ACTIVE' : subtitle, maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 10, height: 1.15, color: active ? AppTheme.green : AppTheme.blueLight)),
+                    Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10, height: 1.15, color: AppTheme.textPrimary)),
                   ],
                 ),
               ),

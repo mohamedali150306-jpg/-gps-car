@@ -24,3 +24,10 @@ Upload instructions:
 Build environment in this package: Flutter 3.24.5, Java 17, Kotlin Gradle plugin 1.9.22. The app UI changes have not been compiled in this environment, so verify the next CodeMagic build log before considering the APK build complete.
 
 Note: android/local.properties is machine-specific and is intentionally not included. Flutter normally generates it during a build.
+
+--- UI update (mockup layout) ---
+- Home screen now follows the two-phone mockup: header, Manual/GPS tiles, "Activate Mode", map with overlays, one full-width control panel (Manual Control or GPS Navigation, chosen by the selected tile), Emergency Stop, 4-sensor row, icon-only bottom nav.
+- Map: style dropdown (Dark / Street / Satellite, Esri tiles), fit-all arrow, zoom +/-, Center on Phone / Car, "Tap to open maps" opens the car/phone position in the phone's maps app (new dependency: url_launcher).
+- Round D-pad with centre stop; Speed list 1 (Slow) / 2 (Medium) / 3 (Fast).
+- New asset: assets/robocar.png (car image cropped from the mockup) - run `flutter pub get`.
+- Not compiled here; check the next CodeMagic build log.

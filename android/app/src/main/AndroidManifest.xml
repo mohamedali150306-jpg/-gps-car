@@ -9,6 +9,13 @@
     <!-- The bridge ESP32 is plugged into the phone with a USB OTG cable -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:label="GPS Robot Car"
         android:name="${applicationName}"

@@ -5,7 +5,7 @@ import 'app_theme.dart';
 // is under 10 cm, matching the RoboCar visual specification.
 const int _kDangerCm = 10;
 
-class SensorCard extends StatelessWidget {
+class SensorCard extends StatefulWidget {
   final int? front;          // nearest point of the swept front arc
   final int? right;
   final int? back;
@@ -24,74 +24,77 @@ class SensorCard extends StatelessWidget {
   });
 
   @override
+  State<SensorCard> createState() => _SensorCardState();
+}
+
+class _SensorCardState extends State<SensorCard> {
+  bool _showSweep = false;
+
+  @override
   Widget build(BuildContext context) {
+    final connected = widget.connected;
+    final arc = widget.arc;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
       decoration: BoxDecoration(
-        color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.borderColor, width: 0.5),
+        gradient: const LinearGradient(colors: [Color(0xFF061B30), Color(0xFF041326)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.borderBlue, width: .8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.sensors_rounded, color: AppTheme.blueLight, size: 19),
-              const SizedBox(width: 7),
-              const Expanded(child: Text('Ultrasonic Sensors', style: TextStyle(fontSize: 13, color: AppTheme.blueLight, fontWeight: FontWeight.w800))),
-              Text('4 SENSORS', style: TextStyle(fontSize: 9, color: AppTheme.textMuted, letterSpacing: .7, fontWeight: FontWeight.w700)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: _SensorCell(
-                icon: Icons.arrow_upward, label: 'Front',
-                value: connected ? front : null)),
-            const SizedBox(width: 6),
-            Expanded(child: _SensorCell(
-                icon: Icons.arrow_forward, label: 'Right',
-                value: connected ? right : null)),
-            const SizedBox(width: 6),
-            Expanded(child: _SensorCell(
-                icon: Icons.arrow_downward, label: 'Back',
-                value: connected ? back : null)),
-            const SizedBox(width: 6),
-            Expanded(child: _SensorCell(
-                icon: Icons.arrow_back, label: 'Left',
-                value: connected ? left : null)),
-          ]),
-          const SizedBox(height: 8),
-          Theme(
-            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: EdgeInsets.zero,
-              iconColor: AppTheme.blueLight,
-              collapsedIconColor: AppTheme.textMuted,
-              title: const Text('Front sweep details', style: TextStyle(fontSize: 10, color: AppTheme.textMuted)),
-              children: [
-                Row(
-                  children: List.generate(arc.length, (i) {
-                    final v = connected ? arc[i] : null;
-                    final c = _color(v);
-                    return Expanded(
-                      child: Container(
-                        margin: EdgeInsets.only(right: i == arc.length - 1 ? 0 : 4),
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppTheme.bgDeep,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppTheme.borderColor, width: 0.5),
-                        ),
-                        child: Text(v == null ? '—' : '$v', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.w500)),
-                      ),
-                    );
-                  }),
-                ),
-              ],
+          // Tapping the header shows / hides the front sweep values.
+          InkWell(
+            onTap: () => setState(() => _showSweep = !_showSweep),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 2, 4, 2),
+              child: Row(
+                children: [
+                  const Icon(Icons.sensors_rounded, color: AppTheme.blueLight, size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(child: Text('Ultrasonic Sensors', style: TextStyle(fontSize: 13, color: AppTheme.textPrimary, fontWeight: FontWeight.w600))),
+                  const Text('4 Sensors', style: TextStyle(fontSize: 11, color: AppTheme.cyan, fontWeight: FontWeight.w600)),
+                  Icon(_showSweep ? Icons.expand_less_rounded : Icons.expand_more_rounded, size: 18, color: AppTheme.cyan),
+                ],
+              ),
             ),
           ),
+          const SizedBox(height: 7),
+          Row(children: [
+            Expanded(child: _SensorCell(label: 'Front', value: connected ? widget.front : null)),
+            const SizedBox(width: 6),
+            Expanded(child: _SensorCell(label: 'Right', value: connected ? widget.right : null)),
+            const SizedBox(width: 6),
+            Expanded(child: _SensorCell(label: 'Back', value: connected ? widget.back : null)),
+            const SizedBox(width: 6),
+            Expanded(child: _SensorCell(label: 'Left', value: connected ? widget.left : null)),
+          ]),
+          if (_showSweep) ...[
+            const SizedBox(height: 8),
+            const Padding(
+              padding: EdgeInsets.only(left: 4, bottom: 4),
+              child: Text('Front sweep (-45° … +45°)', style: TextStyle(fontSize: 10, color: AppTheme.textMuted)),
+            ),
+            Row(
+              children: List.generate(arc.length, (i) {
+                final v = connected ? arc[i] : null;
+                return Expanded(
+                  child: Container(
+                    margin: EdgeInsets.only(right: i == arc.length - 1 ? 0 : 4),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.bgDeep,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.borderColor, width: 0.5),
+                    ),
+                    child: Text(v == null ? '—' : '$v', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: _color(v), fontWeight: FontWeight.w500)),
+                  ),
+                );
+              }),
+            ),
+          ],
         ],
       ),
     );
@@ -105,47 +108,54 @@ class SensorCard extends StatelessWidget {
 }
 
 class _SensorCell extends StatelessWidget {
-  final IconData icon;
-  final String   label;
-  final int?     value;
+  final String label;
+  final int?   value;
 
-  const _SensorCell({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+  const _SensorCell({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     final danger = value != null && value! < _kDangerCm;
-    final color  = danger ? AppTheme.red : AppTheme.green;
+    final color  = danger ? AppTheme.red : (value != null ? AppTheme.green : AppTheme.textDim);
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 5),
       decoration: BoxDecoration(
-        color: AppTheme.bgDeep,
+        color: danger ? AppTheme.redBg : AppTheme.bgDeep,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-            color: danger ? AppTheme.redBorder : AppTheme.borderColor,
-            width: 0.5),
+          color: danger ? AppTheme.red : (value != null ? AppTheme.greenBorder : AppTheme.borderColor),
+          width: danger ? 1.2 : .8,
+        ),
       ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(height: 4),
-          Text(label,
-              style: const TextStyle(fontSize: 10, color: AppTheme.textMuted)),
-          const SizedBox(height: 2),
-          Text(
-            value != null ? '$value' : '—',
-            style: TextStyle(
-              fontSize: 16, fontWeight: FontWeight.w500,
-              color: value != null ? (danger ? AppTheme.red : AppTheme.textPrimary)
-                                   : AppTheme.textDim,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color, width: 1.6)),
+              child: Icon(Icons.sensors_rounded, color: color, size: 14),
             ),
-          ),
-          const Text('cm',
-              style: TextStyle(fontSize: 9, color: AppTheme.textMuted)),
-        ],
+            const SizedBox(width: 5),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.textPrimary)),
+                const SizedBox(height: 1),
+                Text(value != null ? '$value cm' : '— cm', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+              ],
+            ),
+            if (danger) ...[
+              const SizedBox(width: 3),
+              const Icon(Icons.warning_rounded, color: AppTheme.red, size: 15),
+            ],
+          ],
+        ),
       ),
     );
   }
