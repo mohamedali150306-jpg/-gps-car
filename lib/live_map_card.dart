@@ -10,6 +10,7 @@ import 'app_theme.dart';
 import 'car_link.dart';
 import 'gps_controller.dart';
 import 'places_store.dart';
+import 'route_service.dart';
 
 /// Live map. The car position comes from car GPS telemetry and the phone
 /// position comes from the phone's location provider.
@@ -45,6 +46,16 @@ class _LiveMapCardState extends State<LiveMapCard> {
   bool _didInitialCenter = false;
   int _style = 0; // index into _kMapStyles
 
+  // Route to the chosen destination (road directions from the car, or the
+  // phone while the car has no GPS fix).
+  RouteResult? _route;
+  bool _routing = false;
+  bool _walking = false;
+  String? _routeError;
+  LatLng? _routeOrigin;
+  DateTime? _routeAt; // last attempt (throttles automatic refreshes)
+  int _routeSeq = 0;   // ignores answers of outdated requests
+
   @override
   void initState() {
     super.initState();
@@ -65,6 +76,58 @@ class _LiveMapCardState extends State<LiveMapCard> {
     if (!mounted) return;
     setState(() {});
     _maybeCenterOnFirstFix();
+    _maybeReroute();
+  }
+
+  double _meters(LatLng a, LatLng b) =>
+      const Distance().as(LengthUnit.Meter, a, b);
+
+  // Keep the directions current while the car is being driven: refresh when it
+  // has moved ~25 m from where the route started, and retry after a failure.
+  void _maybeReroute() {
+    if (_destination == null || _routing) return;
+    final from = _car ?? _phone;
+    if (from == null) return;
+    final since = _routeAt == null ? 999 : DateTime.now().difference(_routeAt!).inSeconds;
+    if (since < 10) return;
+    final origin = _routeOrigin;
+    if (_route == null || origin == null || _meters(from, origin) > 25) {
+      _loadRoute(fit: false);
+    }
+  }
+
+  Future<void> _loadRoute({bool fit = true}) async {
+    final dest = _destination;
+    if (dest == null) return;
+    final from = _car ?? _phone;
+    if (from == null) {
+      setState(() => _routeError = 'Waiting for car or phone GPS…');
+      return;
+    }
+    final seq = ++_routeSeq;
+    setState(() {
+      _routing = true;
+      _routeError = null;
+      _routeAt = DateTime.now();
+    });
+    final result = await RouteService.fetch(from, dest, walking: _walking);
+    if (!mounted || seq != _routeSeq) return;
+    setState(() {
+      _routing = false;
+      if (result == null) {
+        _routeError = 'No route found. Check the phone internet connection.';
+      } else {
+        _route = result;
+        _routeOrigin = from;
+      }
+    });
+    if (fit && result != null && _mapReady) {
+      _map.fitCamera(CameraFit.bounds(
+        bounds: LatLngBounds.fromPoints(result.points),
+        padding: const EdgeInsets.all(50),
+        maxZoom: 18,
+      ));
+    }
   }
 
   void _maybeCenterOnFirstFix() {
@@ -122,6 +185,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
           _locationMessage = 'Phone GPS active';
         });
         _maybeCenterOnFirstFix();
+        _maybeReroute();
       }, onError: (_) {
         if (mounted) setState(() => _locationMessage = 'Phone GPS unavailable');
       });
@@ -250,6 +314,156 @@ class _LiveMapCardState extends State<LiveMapCard> {
         ],
       );
 
+  IconData _maneuverIcon(RouteStep s) {
+    if (s.type == 'arrive') return Icons.flag;
+    if (s.type == 'depart') return Icons.navigation;
+    switch (s.modifier) {
+      case 'left':         return Icons.turn_left;
+      case 'right':        return Icons.turn_right;
+      case 'slight left':  return Icons.turn_slight_left;
+      case 'slight right': return Icons.turn_slight_right;
+      case 'sharp left':   return Icons.turn_sharp_left;
+      case 'sharp right':  return Icons.turn_sharp_right;
+      case 'uturn':        return Icons.u_turn_left;
+      default:             return Icons.straight;
+    }
+  }
+
+  Widget _stripButton(IconData icon, String tooltip, VoidCallback? onTap) => IconButton(
+        tooltip: tooltip,
+        onPressed: onTap,
+        iconSize: 20,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+        icon: Icon(icon, color: AppTheme.blueLight),
+      );
+
+  // Directions bar under the map: next maneuver, total distance / time,
+  // car <-> walking profile, full step list and refresh.
+  Widget _routeStrip() {
+    final r = _route;
+    final from = _car ?? _phone;
+    IconData icon = Icons.alt_route;
+    String title;
+    String? summary;
+    Color titleColor = AppTheme.textPrimary;
+
+    if (r == null) {
+      title = _routing ? 'Finding the best route…' : (_routeError ?? 'Waiting for GPS…');
+      titleColor = _routing ? AppTheme.textMuted : AppTheme.yellow;
+    } else {
+      final RouteStep? next =
+          r.steps.length > 1 ? r.steps[1] : (r.steps.isNotEmpty ? r.steps.first : null);
+      if (next == null) {
+        title = 'Follow the route';
+      } else {
+        icon = _maneuverIcon(next);
+        final double d = (from != null && r.steps.length > 1)
+            ? _meters(from, next.location)
+            : r.steps.first.distance;
+        title = next.type == 'arrive'
+            ? 'Arrive in ${formatDistance(d)}'
+            : 'In ${formatDistance(d)}: ${next.instruction}';
+      }
+      summary = '${formatDistance(r.distance)} · ${formatDuration(r.duration)}'
+          '${_walking ? ' · walking' : ' · driving'}';
+    }
+
+    return Container(
+      width: double.infinity,
+      color: AppTheme.bgDeep,
+      padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+      child: Row(children: [
+        if (_routing && r == null)
+          const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+        else
+          Icon(icon, color: AppTheme.cyan, size: 24),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: titleColor, fontSize: 11, fontWeight: FontWeight.w600)),
+              if (summary != null)
+                Text(summary, style: const TextStyle(color: AppTheme.textMuted, fontSize: 10)),
+            ],
+          ),
+        ),
+        _stripButton(
+          _walking ? Icons.directions_walk : Icons.directions_car_filled,
+          _walking ? 'Walking route (tap for driving)' : 'Driving route (tap for walking)',
+          () {
+            setState(() {
+              _walking = !_walking;
+              _routeAt = null;
+            });
+            _loadRoute();
+          },
+        ),
+        _stripButton(Icons.list_alt, 'Turn-by-turn steps', r == null ? null : _showSteps),
+        _stripButton(Icons.refresh, 'Refresh route', () {
+          setState(() => _routeAt = null);
+          _loadRoute();
+        }),
+      ]),
+    );
+  }
+
+  void _showSteps() {
+    final r = _route;
+    if (r == null) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppTheme.bgCard,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(ctx).height * .6,
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+              child: Row(children: [
+                Icon(_walking ? Icons.directions_walk : Icons.directions_car_filled,
+                    color: AppTheme.blueLight, size: 22),
+                const SizedBox(width: 10),
+                Text('${formatDistance(r.distance)} · ${formatDuration(r.duration)}',
+                    style: const TextStyle(
+                        color: AppTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+              ]),
+            ),
+            Divider(height: 1, color: AppTheme.borderColor),
+            Expanded(
+              child: ListView.separated(
+                itemCount: r.steps.length,
+                separatorBuilder: (_, __) => Divider(height: 1, color: AppTheme.borderColor),
+                itemBuilder: (_, i) {
+                  final s = r.steps[i];
+                  return ListTile(
+                    dense: true,
+                    leading: Icon(_maneuverIcon(s), color: AppTheme.cyan),
+                    title: Text(s.instruction,
+                        style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13)),
+                    trailing: s.type == 'arrive'
+                        ? null
+                        : Text(formatDistance(s.distance),
+                            style: const TextStyle(color: AppTheme.textMuted, fontSize: 12)),
+                  );
+                },
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     widget.link.removeListener(_refresh);
@@ -288,8 +502,14 @@ class _LiveMapCardState extends State<LiveMapCard> {
                     },
                     onTap: (_, point) {
                       if (!widget.gpsMode) return;
-                      setState(() => _destination = point);
+                      setState(() {
+                        _destination = point;
+                        _route = null;
+                        _routeError = null;
+                        _routeAt = null;
+                      });
                       widget.onDestinationSelected?.call(point);
+                      _loadRoute();
                     },
                   ),
                   children: [
@@ -300,7 +520,19 @@ class _LiveMapCardState extends State<LiveMapCard> {
                         userAgentPackageName: 'com.example.robocar_controller',
                         maxNativeZoom: style.maxNativeZoom,
                       ),
-                    if (car != null && _destination != null)
+                    if (_route != null)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: _route!.points,
+                            strokeWidth: 5,
+                            color: AppTheme.cyan,
+                            borderStrokeWidth: 2,
+                            borderColor: AppTheme.bgPrimary,
+                          ),
+                        ],
+                      )
+                    else if (car != null && _destination != null)
                       PolylineLayer(
                         polylines: [
                           Polyline(points: [car, _destination!], strokeWidth: 4, color: AppTheme.blueLight),
@@ -432,6 +664,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               child: Text(_locationMessage, style: const TextStyle(color: AppTheme.yellow, fontSize: 9), textAlign: TextAlign.center),
             ),
+          if (_destination != null) _routeStrip(),
           if (widget.gpsMode && widget.showNavigationActions)
             Padding(
               padding: const EdgeInsets.all(8),
