@@ -44,6 +44,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
   bool _mapReady = false;
   bool _didInitialCenter = false;
   int _style = 0; // index into _kMapStyles
+  bool _active = false; // map ignores touches until it is tapped (so the page can scroll)
 
   @override
   void initState() {
@@ -281,13 +282,16 @@ class _LiveMapCardState extends State<LiveMapCard> {
                     initialZoom: 16,
                     minZoom: 3,
                     maxZoom: 19,
+                    interactionOptions: InteractionOptions(
+                      flags: _active ? InteractiveFlag.all : InteractiveFlag.none,
+                    ),
                     onMapReady: () {
                       if (!mounted) return;
                       setState(() => _mapReady = true);
                       _maybeCenterOnFirstFix();
                     },
                     onTap: (_, point) {
-                      if (!widget.gpsMode) return;
+                      if (!_active || !widget.gpsMode) return;
                       setState(() => _destination = point);
                       widget.onDestinationSelected?.call(point);
                     },
@@ -313,6 +317,15 @@ class _LiveMapCardState extends State<LiveMapCard> {
                     ),
                   ],
                 ),
+                // While locked, a tap anywhere on the map unlocks it; drags pass
+                // through so the page keeps scrolling.
+                if (!_active)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () => setState(() => _active = true),
+                    ),
+                  ),
                 // Top-left: map style selector + GPS fix status.
                 Positioned(
                   left: 8,
@@ -365,6 +378,12 @@ class _LiveMapCardState extends State<LiveMapCard> {
                         Container(width: 26, height: .8, color: AppTheme.borderBlue),
                         _ZoomButton(icon: Icons.remove_rounded, tooltip: 'Zoom out', onTap: () => _zoomBy(-1)),
                       ]),
+                    ),
+                    const SizedBox(height: 8),
+                    _RoundMapButton(
+                      icon: _active ? Icons.lock_open_rounded : Icons.lock_rounded,
+                      tooltip: _active ? 'Lock map' : 'Tap the map to unlock',
+                      onTap: () => setState(() => _active = !_active),
                     ),
                   ]),
                 ),
