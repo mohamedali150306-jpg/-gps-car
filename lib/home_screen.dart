@@ -90,10 +90,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _selectDestination() async {
-    if (_activeMode != CarMode.gps) {
-      _message('Select GPS Mode and press Activate GPS Mode first.');
-      return;
-    }
     await _scrollTo(_mapKey, navIndex: 1);
     _message('Tap anywhere on the map to choose your destination.');
   }
@@ -104,16 +100,20 @@ class _HomeScreenState extends State<HomeScreen> {
       _message('Connect the car before starting navigation.');
       return;
     }
-    if (_activeMode != CarMode.gps) {
-      _message('Activate GPS Mode first.');
-      return;
-    }
     if (point == null) {
       _message('Select a destination on the map first.');
       return;
     }
+    // Pressing Travel starts the trip right away: switch to GPS mode if needed.
+    if (_activeMode != CarMode.gps) {
+      setState(() {
+        _selected = CarMode.gps;
+        _activeMode = CarMode.gps;
+      });
+    }
     _gps.goToPlace(Place('Map destination', point.latitude, point.longitude));
-    _link.addExternalLog('ok', 'Travel requested to map destination');
+    _link.addExternalLog('ok', 'Travel started to map destination');
+    _message('Car is traveling to the destination.');
   }
 
   void _returnToPhone() {
@@ -122,8 +122,10 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     if (_activeMode != CarMode.gps) {
-      _message('Activate GPS Mode first.');
-      return;
+      setState(() {
+        _selected = CarMode.gps;
+        _activeMode = CarMode.gps;
+      });
     }
     _gps.goHome();
   }
@@ -301,20 +303,28 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: LiveMapCard(
                       link: _link,
                       gps: _gps,
-                      gpsMode: _activeMode == CarMode.gps,
+                      gpsMode: true, // destination can be picked in Manual and GPS mode
                       height: mapHeight,
                       showNavigationActions: false,
                       onDestinationSelected: _onMapDestinationSelected,
                     ),
                   ),
                   const SizedBox(height: 10),
-                  if (_selected == CarMode.manual)
+                  if (_selected == CarMode.manual) ...[
                     _CompactManualCard(
                       enabled: connected && _activeMode == CarMode.manual,
                       onDrive: _link.drive,
                       onStop: _gps.stopAll,
-                    )
-                  else
+                    ),
+                    if (_selectedDestination != null) ...[
+                      const SizedBox(height: 8),
+                      _ManualTravelBar(
+                        destination: _selectedDestination!,
+                        enabled: connected,
+                        onTravel: _travelToDestination,
+                      ),
+                    ],
+                  ] else
                     _QuickGpsCard(
                       connected: connected,
                       active: _activeMode == CarMode.gps,
@@ -721,6 +731,48 @@ class _DpadPainter extends CustomPainter {
   bool shouldRepaint(covariant _DpadPainter old) => old.held != held;
 }
 
+class _ManualTravelBar extends StatelessWidget {
+  final LatLng destination;
+  final bool enabled;
+  final VoidCallback onTravel;
+  const _ManualTravelBar({required this.destination, required this.enabled, required this.onTravel});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+      decoration: _panelDecoration(),
+      child: Row(children: [
+        const Icon(Icons.place_rounded, size: 20, color: AppTheme.blueLight),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Destination  ·  ${destination.latitude.toStringAsFixed(4)}, ${destination.longitude.toStringAsFixed(4)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, color: AppTheme.textPrimary),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          height: 38,
+          child: ElevatedButton.icon(
+            onPressed: enabled ? onTravel : null,
+            icon: const Icon(Icons.play_arrow_rounded, size: 22),
+            label: const Text('Travel', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.blue,
+              disabledBackgroundColor: AppTheme.bgBlue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: AppTheme.cyan, width: .8)),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 class _QuickGpsCard extends StatelessWidget {
   final bool connected;
   final bool active;
@@ -742,7 +794,7 @@ class _QuickGpsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final enabled = connected && active;
+    final enabled = connected;
     final destText = destination == null
         ? 'Select Destination'
         : 'Destination set  ·  ${destination!.latitude.toStringAsFixed(4)}, ${destination!.longitude.toStringAsFixed(4)}';
